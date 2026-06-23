@@ -8,15 +8,8 @@ description: >
 
 inputs:
   aws-region:
-    description: 'The AWS region to configure credentials for.'
-    required: true
-
-  shared-services-role-arn:
-    description: >
-      The ARN of the IAM role to assume in the BODS Shared-Services account
-      via OIDC. Corresponds to the BODS_DEFAULT_GITHUB_ACTIONS_ASSUME_ROLE_ARN
-      variable on the calling repository.
-    required: true
+    description: 'The AWS region to configure credentials for. Defaults to the AWS_REGION organisation variable.'
+    required: false
 
   target-role-arn:
     description: >
@@ -41,18 +34,18 @@ runs:
   using: 'composite'
   steps:
     - name: Configure AWS Credentials in Shared-Services
-      uses: aws-actions/configure-aws-credentials@v4
+      uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4
       with:
-        aws-region: ${{ inputs.aws-region }}
-        role-to-assume: ${{ inputs.shared-services-role-arn }}
+        aws-region: ${{ inputs.aws-region || vars.AWS_REGION }}
+        role-to-assume: ${{ secrets.BODS_DEFAULT_GITHUB_ACTIONS_ASSUME_ROLE_ARN }}
         role-session-name: ${{ inputs.role-session-name }}
         role-duration-seconds: ${{ inputs.role-duration-seconds }}
         role-skip-session-tagging: true
 
     - name: Configure AWS Credentials in target account
-      uses: aws-actions/configure-aws-credentials@v4
+      uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4
       with:
-        aws-region: ${{ inputs.aws-region }}
+        aws-region: ${{ inputs.aws-region || vars.AWS_REGION }}
         role-to-assume: ${{ inputs.target-role-arn }}
         role-session-name: ${{ inputs.role-session-name }}
         role-duration-seconds: ${{ inputs.role-duration-seconds }}
