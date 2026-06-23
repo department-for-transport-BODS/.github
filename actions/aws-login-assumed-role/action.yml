@@ -1,0 +1,60 @@
+name: 'AWS Login with Assumed Role'
+description: >
+  Authenticates with the BODS Shared-Services AWS account via OIDC, then
+  chains to assume a role in the target account. This two-step pattern is
+  required because the OIDC identity provider and the initial trust
+  relationship live in Shared-Services, and the target account grants access
+  by trusting that role.
+
+inputs:
+  aws-region:
+    description: 'The AWS region to configure credentials for.'
+    required: true
+
+  shared-services-role-arn:
+    description: >
+      The ARN of the IAM role to assume in the BODS Shared-Services account
+      via OIDC. Corresponds to the BODS_DEFAULT_GITHUB_ACTIONS_ASSUME_ROLE_ARN
+      variable on the calling repository.
+    required: true
+
+  target-role-arn:
+    description: >
+      The ARN of the IAM role to assume in the target AWS account (e.g. dev,
+      test, uat, prod). This role is assumed by chaining from the
+      Shared-Services role above.
+    required: true
+
+  role-session-name:
+    description: >
+      An identifier for the assumed-role session. Should be descriptive and
+      unique enough to identify the workflow run in AWS CloudTrail. For
+      example: "my-service-dev-deployment".
+    required: true
+
+  role-duration-seconds:
+    description: 'Duration in seconds for each assumed role session.'
+    required: false
+    default: '3600'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Configure AWS Credentials in Shared-Services
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-region: ${{ inputs.aws-region }}
+        role-to-assume: ${{ inputs.shared-services-role-arn }}
+        role-session-name: ${{ inputs.role-session-name }}
+        role-duration-seconds: ${{ inputs.role-duration-seconds }}
+        role-skip-session-tagging: true
+
+    - name: Configure AWS Credentials in target account
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-region: ${{ inputs.aws-region }}
+        role-to-assume: ${{ inputs.target-role-arn }}
+        role-session-name: ${{ inputs.role-session-name }}
+        role-duration-seconds: ${{ inputs.role-duration-seconds }}
+        role-skip-session-tagging: true
+        role-chaining: true
