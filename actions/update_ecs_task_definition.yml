@@ -1,0 +1,44 @@
+name: update_ecs_task_definition
+description: Updates an ECS task definition with a new image and deploys it using AWS maintained github actions
+
+inputs:
+  service:
+    description: The name of the ECS service
+    required: true
+  container:
+    description: The name of the container inside the task definition needing patched
+    required: true
+  task_definition_family:
+    description: The task definition family name
+    required: true
+  image_id:
+    description: The updated image ID
+    required: true
+  cluster_name:
+    description: The name of the ECS cluster
+    required: true
+  wait_for_service_stability:
+    description: Whether to wait for ECS service stability after deployment
+    required: false
+    default: 'false'
+
+runs:
+  using: "composite"
+  steps:
+    - name: Render ECS task definition
+      id: render-task-def
+      uses: aws-actions/amazon-ecs-render-task-definition@6853cfae8c3a7d978fbf68b5a55453395541dfbb # 1.8.5
+      with:
+        task-definition-family: ${{ inputs.task_definition_family }}
+        container-name: ${{ inputs.container }}
+        image: ${{ inputs.image_id }}
+
+    - name: Deploy ECS task definition
+      uses: aws-actions/amazon-ecs-deploy-task-definition@a310a830f5c14e583e35d84e4e1ec7dd177c3c9c # 2.6.2
+      with:
+        task-definition: ${{ steps.render-task-def.outputs.task-definition }}
+        service: ${{ inputs.service }}
+        cluster: ${{ inputs.cluster_name }}
+        wait-for-service-stability: ${{ inputs.wait_for_service_stability }}
+        wait-max-delay-seconds: 15
+

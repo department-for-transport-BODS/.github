@@ -1,0 +1,35 @@
+name: wait_for_ecs_service_stability
+description: Waits for one or more ECS services to become stable by polling every 15 seconds, timing out after 40 failed checks.
+
+inputs:
+  service_names:
+    description: A space-separated list of ECS service names to monitor (e.g. "service-a service-b")
+    required: true
+  cluster_name:
+    description: The name of the ECS cluster the services belongs to
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Wait for ECS service stability
+      shell: bash
+      run: |
+        SERVICE_NAMES="${{ inputs.service_names }}"
+        CLUSTER_NAME="${{ inputs.cluster_name }}"
+        
+        aws sts get-caller-identity > /dev/null 2>&1 || { echo "AWS credentials not configured."; exit 1; }
+
+        echo "Waiting for ECS services '$SERVICE_NAMES' in cluster '$CLUSTER_NAME' to become stable..."
+
+        aws ecs wait services-stable \
+          --cluster "$CLUSTER_NAME" \
+          --services $SERVICE_NAMES \
+          --no-cli-pager
+
+        if [ $? -eq 0 ]; then
+          echo "ECS services '$SERVICE_NAMES' are stable."
+        else
+          echo "ECS services '$SERVICE_NAMES' did not become stable in time."
+          exit 1
+        fi
