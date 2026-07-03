@@ -7,8 +7,8 @@ This repository contains shared resources such as reusable GitHub Actions used t
 
 | Action | Description |
 |--------|-------------|
-| [`update_ecs_task_definition`](./actions/update_ecs_task_definition.yml) | Updates an ECS task definition with a new Docker image and deploys it to the specified ECS service and cluster using the AWS-maintained GitHub Actions. |
-| [`wait_for_ecs_service_stability`](./actions/wait_for_ecs_service_stability.yml) | Waits for one or more ECS services to become stable by polling every 15 seconds, timing out after 40 failed checks. |
+| [`update_ecs_task_definition`](actions/update_ecs_task_definition/action.yml) | Updates an ECS task definition with a new Docker image and deploys it to the specified ECS service and cluster using the AWS-maintained GitHub Actions. |
+| [`wait_for_ecs_service_stability`](actions/wait_for_ecs_service_stability/action.yml) | Waits for one or more ECS services to become stable by polling every 15 seconds, timing out after 40 failed checks. |
 
 
 ---
