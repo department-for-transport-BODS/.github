@@ -1,4 +1,4 @@
-name: update_ecs_task_definition
+name: update-ecs-task-definition
 description: Updates an ECS task definition with a new image and deploys it using AWS maintained github actions
 
 inputs:

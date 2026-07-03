@@ -12,7 +12,7 @@ A composite GitHub Action that polls one or more ECS services until they reach a
 
 ```yaml
 - name: Wait for ECS Service Stability
-  uses: ./.github/actions/wait_for_ecs_service_stability
+  uses: ./.github/actions/wait-for-ecs-service-stability
   with:
     service_names: my-service-a my-service-b
     cluster_name: my-ecs-cluster

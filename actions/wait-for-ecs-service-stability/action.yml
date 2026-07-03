@@ -1,4 +1,4 @@
-name: wait_for_ecs_service_stability
+name: wait-for-ecs-service-stability
 description: Waits for one or more ECS services to become stable by polling every 15 seconds, timing out after 40 failed checks.
 
 inputs:

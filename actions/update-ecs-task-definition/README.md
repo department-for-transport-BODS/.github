@@ -11,7 +11,7 @@ A composite GitHub Action that updates an ECS task definition with a new contain
 
 ```yaml
 - name: Update ECS Task Definition
-  uses: ./.github/actions/update_ecs_task_definition
+  uses: ./.github/actions/update-ecs-task-definition
   with:
     service: my-ecs-service
     container: my-container
