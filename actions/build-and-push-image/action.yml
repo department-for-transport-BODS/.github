@@ -1,0 +1,47 @@
+name: build-and-push-image
+
+description: Build a Docker image, check whether the image already exists in ECR, and push it if not.
+
+inputs:
+  image_uri:
+    description: Fully qualified image URI including registry, repository, and tag.
+    required: true
+  dockerfile:
+    description: Path to the Dockerfile.
+    required: true
+  build_context:
+    description: Docker build context directory.
+    required: true
+    default: .
+  check_existing_image:
+    description: Whether to fail if the image tag already exists in the remote registry.
+    required: false
+    default: 'true'
+
+outputs:
+  image:
+    description: The image URI built and pushed.
+    value: ${{ inputs.image_uri }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Check whether image exists
+      if: ${{ inputs.check_existing_image == 'true' }}
+      shell: bash
+      run: |
+        IMAGE=${{ inputs.image_uri }}
+        if docker manifest inspect "$IMAGE" >/dev/null 2>&1; then
+          echo "The image $IMAGE already exists in the registry."
+          exit 1
+        fi
+
+    - name: Build Docker image
+      shell: bash
+      run: |
+        docker build -t "${{ inputs.image_uri }}" -f "${{ inputs.dockerfile }}" "${{ inputs.build_context }}"
+
+    - name: Push Docker image
+      shell: bash
+      run: |
+        docker push "${{ inputs.image_uri }}"

@@ -7,6 +7,7 @@ This repository contains shared resources such as reusable GitHub Actions used t
 
 | Action | Description |
 |--------|-------------|
+| [`build-and-push-image`](actions/build-and-push-image/action.yml) | Builds a Docker image, checks whether the image already exists in ECR, and pushes it. |
 | [`update_ecs_task_definition`](actions/update-ecs-task-definition/action.yml) | Updates an ECS task definition with a new Docker image and deploys it to the specified ECS service and cluster using the AWS-maintained GitHub Actions. |
 | [`wait_for_ecs_service_stability`](actions/wait-for-ecs-service-stability/action.yml) | Waits for one or more ECS services to become stable by polling every 15 seconds, timing out after 40 failed checks. |
 
