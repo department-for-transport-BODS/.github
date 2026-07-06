@@ -1,0 +1,42 @@
+name: Update Major Version Tag
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  update-major-tag:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # 6.0.3
+
+      - name: Validate and extract major version
+        id: parse
+        run: |
+          TAG="${{ github.event.release.tag_name }}"
+
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Tag '$TAG' does not match expected semver format vX.Y.Z."
+            exit 1
+          fi
+
+          MAJOR_VERSION=$(echo "$TAG" | cut -d'.' -f1)
+          echo "major_version=$MAJOR_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Move or create major version tag
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+          MAJOR_VERSION: ${{ steps.parse.outputs.major_version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git tag -f "${MAJOR_VERSION}" "${TAG}"
+          git push origin "refs/tags/${MAJOR_VERSION}" -f
+
+          echo "${MAJOR_VERSION} now points to ${TAG}"
+
