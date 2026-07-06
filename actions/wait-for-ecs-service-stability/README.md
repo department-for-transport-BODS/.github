@@ -1,12 +1,13 @@
 # wait_for_ecs_service_stability
 
-A composite GitHub Action that polls one or more ECS services until they reach a stable state, using the AWS CLI `ecs wait services-stable` command. It checks every 15 seconds and times out after 40 failed checks (~10 minutes).
+A composite GitHub Action that polls one or more ECS services until they reach a stable state, using the AWS CLI `ecs wait services-stable` command.
 
 ## What It Does
 
 1. **Validates** that AWS credentials are configured before proceeding.
 2. **Polls** the specified ECS services in the given cluster using `aws ecs wait services-stable`.
-3. **Exits successfully** if all services become stable, or **fails** with a non-zero exit code if they do not stabilise within the timeout window.
+3. **Retries up to 3 times** if the waiter times out before the services become stable.
+4. **Exits successfully** if all services become stable, or **fails** with a non-zero exit code if all 3 attempts are exhausted.
 
 ## Usage
 
@@ -33,5 +34,5 @@ A composite GitHub Action that polls one or more ECS services until they reach a
 
 ## Timeout Behaviour
 
-This action delegates timeout behaviour to the AWS CLI waiter, which polls every **15 seconds** and gives up after **40 attempts** (~10 minutes total). If the services have not stabilised within that window, the action exits with a non-zero code and fails the workflow.
+This action delegates timeout behaviour to the AWS CLI waiter, which polls every **15 seconds** and gives up after **40 attempts** (~10 minutes per attempt). If the services have not stabilised within that window, the action retries up to **3 times** before exiting with a non-zero code and failing the workflow. The maximum total wait time is therefore approximately **30 minutes**.
 
