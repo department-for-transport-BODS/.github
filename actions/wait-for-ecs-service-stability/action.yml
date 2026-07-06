@@ -22,14 +22,22 @@ runs:
 
         echo "Waiting for ECS services '$SERVICE_NAMES' in cluster '$CLUSTER_NAME' to become stable..."
 
-        aws ecs wait services-stable \
+        MAX_ATTEMPTS=3
+        ATTEMPT=0
+
+        until aws ecs wait services-stable \
           --cluster "$CLUSTER_NAME" \
           --services $SERVICE_NAMES \
-          --no-cli-pager
+          --no-cli-pager; do
 
-        if [ $? -eq 0 ]; then
-          echo "ECS services '$SERVICE_NAMES' are stable."
-        else
-          echo "ECS services '$SERVICE_NAMES' did not become stable in time."
-          exit 1
-        fi
+          ATTEMPT=$((ATTEMPT + 1))
+          if [ $ATTEMPT -ge $MAX_ATTEMPTS ]; then
+            echo "ECS services '$SERVICE_NAMES' did not become stable after $MAX_ATTEMPTS attempts."
+            exit 1
+          fi
+
+          echo "Attempt $ATTEMPT of $MAX_ATTEMPTS failed. Retrying..."
+        done
+
+        echo "ECS services '$SERVICE_NAMES' are stable."
+
