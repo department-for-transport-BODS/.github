@@ -73,7 +73,7 @@ uses: department-for-transport-BODS/.github/actions/<action-name>@a1b2c3d4e5f6
 
 Once testing is complete, create a semantic version tag and publish a GitHub Release with a changelog describing what has changed.
 
-The [`update-major-version-tag`](workflows/update-major-version-tag.yml) workflow will automatically update the corresponding major tag (e.g. `v1`) to point to the new release.
+The [`update-major-version-tag`](.github/workflows/update-major-version-tag.yml) workflow will automatically update the corresponding major tag (e.g. `v1`) to point to the new release.
 
 ### 4. Breaking Changes
 
