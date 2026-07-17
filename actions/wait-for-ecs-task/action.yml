@@ -1,0 +1,63 @@
+name: wait-for-ecs-task
+description: Waits for an ECS run-task to stop, then validates its exit code. Retries up to 4 times (~40 minutes total) before failing.
+
+inputs:
+  task_arn:
+    description: The ARN of the ECS task to wait for
+    required: true
+  cluster_name:
+    description: The name of the ECS cluster the task is running in
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Wait for ECS task to stop
+      shell: bash
+      run: |
+        TASK_ARN="${{ inputs.task_arn }}"
+        CLUSTER_NAME="${{ inputs.cluster_name }}"
+
+        aws sts get-caller-identity > /dev/null 2>&1 || { echo "AWS credentials not configured."; exit 1; }
+
+        echo "Waiting for ECS task '$TASK_ARN' to stop in cluster '$CLUSTER_NAME'..."
+
+        # aws ecs wait tasks-stopped polls every 6s for up to 100 attempts (~10 min).
+        # MAX_ATTEMPTS=4 gives ~40 minutes total to cover long-running test suites.
+        MAX_ATTEMPTS=4
+        ATTEMPT=0
+
+        until aws ecs wait tasks-stopped \
+          --cluster "$CLUSTER_NAME" \
+          --tasks "$TASK_ARN" \
+          --no-cli-pager; do
+
+          ATTEMPT=$((ATTEMPT + 1))
+          if [ $ATTEMPT -ge $MAX_ATTEMPTS ]; then
+            echo "ECS task '$TASK_ARN' did not stop after $MAX_ATTEMPTS attempts (~40 minutes)."
+            exit 1
+          fi
+
+          echo "Attempt $ATTEMPT of $MAX_ATTEMPTS timed out. Retrying..."
+        done
+
+        STOP_REASON=$(aws ecs describe-tasks \
+          --cluster "$CLUSTER_NAME" \
+          --tasks "$TASK_ARN" \
+          --query 'tasks[0].stoppedReason' \
+          --output text)
+
+        EXIT_CODE=$(aws ecs describe-tasks \
+          --cluster "$CLUSTER_NAME" \
+          --tasks "$TASK_ARN" \
+          --query 'tasks[0].containers[0].exitCode' \
+          --output text)
+
+        echo "Task stopped — exit code: $EXIT_CODE, reason: $STOP_REASON"
+
+        if [ "$EXIT_CODE" != "0" ]; then
+          echo "ECS task failed with exit code $EXIT_CODE. Reason: $STOP_REASON"
+          exit 1
+        fi
+
+        echo "ECS task '$TASK_ARN' completed successfully."
