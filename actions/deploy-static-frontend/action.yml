@@ -1,0 +1,76 @@
+name: deploy-static-frontend
+description: Sync a static export to S3, optionally set an HTML prefix content type, and invalidate CloudFront.
+
+inputs:
+  export_directory:
+    description: Local directory containing the static frontend export.
+    required: true
+  target_bucket:
+    description: S3 URI for the target bucket, for example s3://frontend-bucket.
+    required: true
+  cloudfront_distribution_id:
+    description: CloudFront distribution to invalidate after the S3 upload.
+    required: true
+  html_prefix:
+    description: Optional relative S3 prefix whose objects should be replaced with text/html content type before invalidation.
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - name: Sync static frontend and invalidate CloudFront
+      shell: bash
+      env:
+        EXPORT_DIRECTORY: ${{ inputs.export_directory }}
+        TARGET_BUCKET: ${{ inputs.target_bucket }}
+        CLOUDFRONT_DISTRIBUTION_ID: ${{ inputs.cloudfront_distribution_id }}
+        HTML_PREFIX: ${{ inputs.html_prefix }}
+      run: |
+        set -euo pipefail
+
+        if [[ -z "$EXPORT_DIRECTORY" || -z "$TARGET_BUCKET" || -z "$CLOUDFRONT_DISTRIBUTION_ID" ]]; then
+          echo "::error::Export directory, target S3 URI, and CloudFront distribution ID are required"
+          exit 1
+        fi
+        if [[ ! -d "$EXPORT_DIRECTORY" ]]; then
+          echo "::error::Frontend export directory does not exist: $EXPORT_DIRECTORY"
+          exit 1
+        fi
+        if [[ ! "$TARGET_BUCKET" =~ ^s3://[^/]+/?$ ]]; then
+          echo "::error::Target bucket must be an S3 bucket URI such as s3://frontend-bucket"
+          exit 1
+        fi
+        if [[ -n "$HTML_PREFIX" && ( "$HTML_PREFIX" == /* || "$HTML_PREFIX" =~ (^|/)\.{1,2}(/|$) ) ]]; then
+          echo "::error::HTML prefix must be a relative path beneath the target bucket: $HTML_PREFIX"
+          exit 1
+        fi
+
+        target_bucket="${TARGET_BUCKET%/}"
+        aws s3 sync "$EXPORT_DIRECTORY/" "$target_bucket/" \
+          --delete \
+          --exclude build-info.json \
+          --only-show-errors
+
+        if [[ -n "$HTML_PREFIX" ]]; then
+          html_prefix="${HTML_PREFIX%/}"
+          aws s3 cp "$target_bucket/$html_prefix/" "$target_bucket/$html_prefix/" \
+            --recursive \
+            --metadata-directive REPLACE \
+            --content-type 'text/html; charset=utf-8' \
+            --only-show-errors
+        fi
+
+        invalidation_id=$(aws cloudfront create-invalidation \
+          --distribution-id "$CLOUDFRONT_DISTRIBUTION_ID" \
+          --paths '/*' \
+          --query Invalidation.Id \
+          --output text)
+        if [[ -z "$invalidation_id" || "$invalidation_id" == "None" ]]; then
+          echo "::error::CloudFront did not return an invalidation ID"
+          exit 1
+        fi
+
+        aws cloudfront wait invalidation-completed \
+          --distribution-id "$CLOUDFRONT_DISTRIBUTION_ID" \
+          --id "$invalidation_id"

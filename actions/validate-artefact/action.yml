@@ -1,0 +1,72 @@
+name: validate-artefact
+description: Verify required, non-empty files exist under an S3 artefact prefix.
+
+inputs:
+  bucket:
+    description: S3 bucket containing the artefact.
+    required: true
+  prefix:
+    description: S3 key prefix for the artefact, without a leading slash.
+    required: true
+  required_files:
+    description: Newline-separated relative file paths that must exist and be non-empty.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Validate required S3 objects
+      shell: bash
+      env:
+        BUCKET: ${{ inputs.bucket }}
+        PREFIX: ${{ inputs.prefix }}
+        REQUIRED_FILES: ${{ inputs.required_files }}
+      run: |
+        set -euo pipefail
+
+        if [[ -z "$BUCKET" || -z "$PREFIX" || -z "$REQUIRED_FILES" ]]; then
+          echo "::error::S3 bucket, artefact prefix, and required file paths must all be provided"
+          exit 1
+        fi
+        if [[ "$PREFIX" == /* ]]; then
+          echo "::error::Artefact prefix must not start with '/': $PREFIX"
+          exit 1
+        fi
+
+        error_file=$(mktemp)
+        trap 'rm -f "$error_file"' EXIT
+        found_file=false
+
+        while IFS= read -r required_file || [[ -n "$required_file" ]]; do
+          [[ -z "$required_file" ]] && continue
+          if [[ "$required_file" == /* || "$required_file" =~ (^|/)\.{1,2}(/|$) ]]; then
+            echo "::error::Required file must be a relative path beneath the artefact prefix: $required_file"
+            exit 1
+          fi
+          found_file=true
+          key="${PREFIX%/}/$required_file"
+
+          if ! size=$(aws s3api head-object \
+            --bucket "$BUCKET" \
+            --key "$key" \
+            --query ContentLength \
+            --output text 2>"$error_file"); then
+            if grep -Eq '\(404\)|NoSuchKey' "$error_file"; then
+              echo "::error::Required artefact file does not exist: s3://$BUCKET/$key"
+            else
+              echo "::error::Unable to access s3://$BUCKET/$key; check S3 permissions and AWS configuration"
+              cat "$error_file" >&2
+            fi
+            exit 1
+          fi
+
+          if [[ "$size" == "0" ]]; then
+            echo "::error::Required artefact file is empty: s3://$BUCKET/$key"
+            exit 1
+          fi
+        done <<< "$REQUIRED_FILES"
+
+        if [[ "$found_file" != true ]]; then
+          echo "::error::At least one required relative file path must be provided"
+          exit 1
+        fi

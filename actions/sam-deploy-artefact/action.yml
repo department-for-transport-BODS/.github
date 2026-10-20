@@ -1,0 +1,86 @@
+name: sam-deploy-artefact
+description: Deploy a local SAM template using the stack configuration selected by the caller.
+
+inputs:
+  template_file:
+    description: Path to the packaged SAM template.
+    required: true
+  config_file:
+    description: Path to the SAM configuration file.
+    required: true
+  config_environment:
+    description: Environment key to select from the SAM configuration file.
+    required: true
+  aws_region:
+    description: AWS region for the deployment.
+    required: true
+  deployment_bucket:
+    description: S3 bucket used by SAM for deployment artifacts.
+    required: true
+  deployment_prefix:
+    description: S3 key prefix used by SAM for deployment artifacts.
+    required: true
+  project_name:
+    description: ProjectName value applied to the stack.
+    required: true
+  release_version:
+    description: Release version applied as the BuiltFrom stack tag.
+    required: true
+
+outputs:
+  stack_name:
+    description: The validated stack name selected from the SAM configuration.
+    value: ${{ steps.deploy.outputs.stack_name }}
+
+runs:
+  using: composite
+  steps:
+    - name: Deploy SAM template
+      id: deploy
+      shell: bash
+      env:
+        TEMPLATE_FILE: ${{ inputs.template_file }}
+        CONFIG_FILE: ${{ inputs.config_file }}
+        CONFIG_ENVIRONMENT: ${{ inputs.config_environment }}
+        AWS_REGION: ${{ inputs.aws_region }}
+        DEPLOYMENT_BUCKET: ${{ inputs.deployment_bucket }}
+        DEPLOYMENT_PREFIX: ${{ inputs.deployment_prefix }}
+        PROJECT_NAME: ${{ inputs.project_name }}
+        RELEASE_VERSION: ${{ inputs.release_version }}
+      run: |
+        set -euo pipefail
+
+        for name in TEMPLATE_FILE CONFIG_FILE CONFIG_ENVIRONMENT AWS_REGION DEPLOYMENT_BUCKET DEPLOYMENT_PREFIX PROJECT_NAME RELEASE_VERSION; do
+          if [[ -z "${!name}" ]]; then
+            echo "::error::Required SAM deployment input is empty: ${name,,}"
+            exit 1
+          fi
+        done
+        if [[ ! -f "$TEMPLATE_FILE" ]]; then
+          echo "::error::SAM template file does not exist: $TEMPLATE_FILE"
+          exit 1
+        fi
+        if [[ ! -f "$CONFIG_FILE" ]]; then
+          echo "::error::SAM config file does not exist: $CONFIG_FILE"
+          exit 1
+        fi
+
+        stack_name=$(yq e -r '.[strenv(CONFIG_ENVIRONMENT)].deploy.parameters.stack_name // ""' "$CONFIG_FILE")
+        if [[ ! "$stack_name" =~ ^[A-Za-z][A-Za-z0-9-]{0,127}$ ]]; then
+          echo "::error::SAM config has no valid stack_name for environment '$CONFIG_ENVIRONMENT'"
+          exit 1
+        fi
+
+        sam deploy \
+          --template-file "$TEMPLATE_FILE" \
+          --config-file "$CONFIG_FILE" \
+          --config-env "$CONFIG_ENVIRONMENT" \
+          --stack-name "$stack_name" \
+          --region "$AWS_REGION" \
+          --no-confirm-changeset \
+          --no-fail-on-empty-changeset \
+          --s3-bucket "$DEPLOYMENT_BUCKET" \
+          --s3-prefix "$DEPLOYMENT_PREFIX" \
+          --tags "BuiltFrom=$RELEASE_VERSION" "ProjectName=$PROJECT_NAME" "Environment=$CONFIG_ENVIRONMENT"
+
+        printf 'stack_name=%s\n' "$stack_name" >> "$GITHUB_OUTPUT"
