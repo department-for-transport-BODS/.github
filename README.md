@@ -9,6 +9,8 @@ This repository contains shared resources such as reusable GitHub Actions used t
 |--------|-------------|
 | [`build-and-push-image`](actions/build-and-push-image/action.yml) | Builds a Docker image, checks whether the image already exists in ECR, and pushes it. |
 | [`validate-artefact`](actions/validate-artefact/action.yml) | Checks that required, non-empty files exist beneath an S3 artefact prefix. |
+| [`read-artefact-manifest`](actions/read-artefact-manifest/action.yml) | Reads a deployed artefact version from the DynamoDB manifest. |
+| [`write-artefact-manifest`](actions/write-artefact-manifest/action.yml) | Atomically records deployed artefact versions in the DynamoDB manifest. |
 | [`sam-deploy-artefact`](actions/sam-deploy-artefact/action.yml) | Validates a SAM stack name from a local config and deploys the supplied template. |
 | [`deploy-static-frontend`](actions/deploy-static-frontend/action.yml) | Syncs a static export to S3, optionally corrects an HTML prefix, then invalidates CloudFront. |
 | [`update_ecs_task_definition`](actions/update-ecs-task-definition/action.yml) | Updates an ECS task definition with a new Docker image and deploys it to the specified ECS service and cluster using the AWS-maintained GitHub Actions. |

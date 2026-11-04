@@ -1,0 +1,55 @@
+name: write-artefact-manifest
+description: Atomically record deployed artefact versions in the DynamoDB manifest.
+inputs:
+  table:
+    description: DynamoDB artefact manifest table.
+    required: true
+  artefacts:
+    description: JSON object mapping service artefact keys to deployed versions.
+    required: true
+  environment:
+    description: Deployment environment to update.
+    required: true
+  region:
+    description: AWS region containing the manifest table.
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Record deployed artefact versions
+      shell: bash
+      env:
+        TABLE: ${{ inputs.table }}
+        ARTEFACTS: ${{ inputs.artefacts }}
+        ENVIRONMENT: ${{ inputs.environment }}
+        REGION: ${{ inputs.region }}
+      run: |
+        set -euo pipefail
+        : "${TABLE:?Manifest table is required}"
+        : "${ARTEFACTS:?Artefacts are required}"
+        : "${ENVIRONMENT:?Environment is required}"
+        : "${REGION:?AWS region is required}"
+        if ! jq -e 'type == "object" and length > 0 and length <= 100 and
+          all(to_entries[]; (.key | length > 0) and (.value | type == "string" and length > 0))' \
+          <<< "$ARTEFACTS" > /dev/null; then
+          echo "::error::Artefacts must map 1 to 100 non-empty service artefact keys to non-empty version strings"
+          exit 1
+        fi
+        transaction=$(mktemp)
+        trap 'rm -f "$transaction"' EXIT
+        jq -n --arg table "$TABLE" --arg environment "$ENVIRONMENT" --argjson artefacts "$ARTEFACTS" \
+          '{
+            TransactItems: ($artefacts | to_entries | map({
+              Update: {
+                TableName: $table,
+                Key: {
+                  service_artefact: {S: .key},
+                  environment: {S: $environment}
+                },
+                UpdateExpression: "SET #version = :version",
+                ExpressionAttributeNames: {"#version": "version"},
+                ExpressionAttributeValues: {":version": {S: .value}}
+              }
+            }))
+          }' > "$transaction"
+        aws dynamodb transact-write-items --region "$REGION" --cli-input-json "file://$transaction"

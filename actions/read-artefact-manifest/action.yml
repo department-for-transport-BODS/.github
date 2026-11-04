@@ -1,0 +1,46 @@
+name: read-artefact-manifest
+description: Read a deployed artefact version from the DynamoDB manifest.
+inputs:
+  table:
+    description: DynamoDB artefact manifest table.
+    required: true
+  service_artefact:
+    description: Service artefact key in the manifest.
+    required: true
+  environment:
+    description: Deployment environment to read.
+    required: true
+  region:
+    description: AWS region containing the manifest table.
+    required: true
+outputs:
+  version:
+    description: Deployed artefact version.
+    value: ${{ steps.manifest.outputs.version }}
+runs:
+  using: composite
+  steps:
+    - name: Read deployed artefact version
+      id: manifest
+      shell: bash
+      env:
+        TABLE: ${{ inputs.table }}
+        SERVICE_ARTEFACT: ${{ inputs.service_artefact }}
+        ENVIRONMENT: ${{ inputs.environment }}
+        REGION: ${{ inputs.region }}
+      run: |
+        set -euo pipefail
+        : "${TABLE:?Manifest table is required}"
+        : "${SERVICE_ARTEFACT:?Service artefact is required}"
+        : "${ENVIRONMENT:?Environment is required}"
+        : "${REGION:?AWS region is required}"
+        key=$(jq -cn --arg service_artefact "$SERVICE_ARTEFACT" --arg environment "$ENVIRONMENT" \
+          '{service_artefact: {S: $service_artefact}, environment: {S: $environment}}')
+        version=$(aws dynamodb get-item --table-name "$TABLE" --region "$REGION" \
+          --consistent-read --key "$key" --output json | \
+          jq -er '.Item.version.S | select(type == "string" and length > 0)')
+        if [[ "$version" == *$'\n'* || "$version" == *$'\r'* ]]; then
+          echo "::error::Manifest version must be a single line"
+          exit 1
+        fi
+        echo "version=$version" >> "$GITHUB_OUTPUT"
